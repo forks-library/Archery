@@ -18,14 +18,14 @@
             escape: true,
             method: 'get',
             contentType: "application/x-www-form-urlencoded",
-            url: "/sqlworkflow/backup_sql/",
+            url: "/api/v1/sql-workflows/{{ audit_id }}/rollback/",
             striped: true,                      //是否显示行间隔色
             cache: false,                       //是否使用缓存，默认为true，所以一般情况下需要设置一下这个属性（*）
             pagination: true,                   //是否显示分页（*）
             sortable: true,                     //是否启用排序
             sidePagination: "client",           //分页方式：client客户端分页，server服务端分页（*）
             pageNumber: 1,                      //初始化加载第一页，默认第一页,并记录
-            pageSize: 14,                       //每页的记录行数（*）
+            pageSize: 20,                       //每页的记录行数（*）
             pageList: [10, 30, 50, 100, 500],        //可供选择的每页的行数（*）
             showExport: true,                   //是否显示导出按钮
             exportOptions: {
@@ -65,14 +65,6 @@
                 );
                 return html.join('');
             },
-            queryParamsType: 'limit',
-            //请求服务数据时所传参数
-            queryParams:
-                function (params) {
-                    return {
-                        workflow_id: "{{ workflow_detail.id }}",
-                    }
-                },
             locale: 'zh-CN',                    //本地化
             columns: [{
                 title: '执行语句',
@@ -92,10 +84,11 @@
                 title: '回滚语句',
                 field: 1,
                 formatter: function (value, row, index) {
-                    if (value.length > 80) {
-                        return value.substr(0, 80) + '...';
+                    var sql=row[1];
+                    if (sql.length > 80) {
+                        return sql.substr(0, 80) + '...';
                     } else {
-                        return value
+                        return sql
                     }
                 }
             }, {
@@ -115,9 +108,7 @@
                     sessionStorage.setItem('editSqlContent', backup_sql);
                 }
             },
-            onLoadError: function () {
-                alert("数据加载失败！请检查接口返回信息和错误日志！");
-            }
+            onLoadError: onLoadErrorCallback,
         });
         $(document).ready(function () {
             var isRollback = window.location.pathname.indexOf("rollback");

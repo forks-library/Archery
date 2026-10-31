@@ -47,13 +47,9 @@
                                 title="请选择实例:"
                                 data-live-search="true" required>
                             // TODO 使用models中的choices 渲染
-                            <optgroup id="optgroup-mysql" label="MySQL"></optgroup>
-                            <optgroup id="optgroup-mssql" label="MsSQL"></optgroup>
-                            <optgroup id="optgroup-redis" label="Redis"></optgroup>
-                            <optgroup id="optgroup-pgsql" label="PgSQL"></optgroup>
-                            <optgroup id="optgroup-oracle" label="Oracle"></optgroup>
-                            <optgroup id="optgroup-mongo" label="Mongo"></optgroup>
-                            <optgroup id="optgroup-phoenix" label="Phoenix"></optgroup>
+                            {% for name, engine in engines.items %}
+                                <optgroup id="optgroup-{{ name }}" label="{{ engine.name }}"></optgroup>
+                            {%  endfor %}
                         </select>
                     </div>
                     <div class="form-group">
@@ -155,34 +151,16 @@
                 },
                 success: function (data) {
                     if (data.status === 0) {
-                        var result = data['data'];
-                        $("#optgroup-mysql").empty();
-                        $("#optgroup-mssql").empty();
-                        $("#optgroup-redis").empty();
-                        $("#optgroup-pgsql").empty();
-                        $("#optgroup-oracle").empty();
-                        $("#optgroup-mongo").empty();
-                        $("#optgroup-phoenix").empty();
-                        for (var i = 0; i < result.length; i++) {
-                            var instance = "<option value=\"" + result[i]['instance_name'] + "\">" + result[i]['instance_name'] + "</option>";
-                            if (result[i]['db_type'] === 'mysql') {
-                                $("#optgroup-mysql").append(instance);
-                            } else if (result[i]['db_type'] === 'mssql') {
-                                $("#optgroup-mssql").append(instance);
-                            } else if (result[i]['db_type'] === 'redis') {
-                                $("#optgroup-redis").append(instance);
-                            } else if (result[i]['db_type'] === 'pgsql') {
-                                $("#optgroup-pgsql").append(instance);
-                            } else if (result[i]['db_type'] === 'oracle') {
-                                $("#optgroup-oracle").append(instance);
-                            } else if (result[i]['db_type'] === 'mongo') {
-                                $("#optgroup-mongo").append(instance);
-                            } else if (result[i]['db_type'] === 'phoenix') {
-                                $("#optgroup-phoenix").append(instance);
+                        $("optgroup[id^='optgroup']").empty();
+                        let result = data['data']
+                        const supportDb = [ {% for name in engines.keys %}"{{ name }}", {% endfor %}]
+                        for (let i of result) {
+                            let instance = "<option value=\"" + i.instance_name + "\" instance-id=" + i.id + ">" + i.instance_name + "</option>";
+                            if (supportDb.indexOf(i.db_type) !== -1) {
+                                $("#optgroup-" + i.db_type).append(instance);
                             }
                         }
-                        $('#instance_name').selectpicker('render');
-                        $('#instance_name').selectpicker('refresh');
+                        $('#instance_name').selectpicker('render').selectpicker('refresh');
                     } else {
                         alert(data.msg);
                     }
@@ -231,6 +209,13 @@
             selectedTextFormat: "count > 5"
         });
 
+        function queryApplyDetailUrl(row) {
+            if (row.audit_id) {
+                return "/workflow/" + row.audit_id + "/";
+            }
+            return "/queryapplydetail/" + row.apply_id + "/";
+        }
+
         //获取申请列表
         function queryapplylist() {
             //采取异步请求
@@ -247,7 +232,7 @@
                 sortOrder: "asc",                   //排序方式
                 sidePagination: "server",           //分页方式：client客户端分页，server服务端分页（*）
                 pageNumber: 1,                      //初始化加载第一页，默认第一页,并记录
-                pageSize: 14,                     //每页的记录行数（*）
+                pageSize: 20,                     //每页的记录行数（*）
                 pageList: [20, 30, 50, 100],       //可供选择的每页的行数（*）
                 search: true,                      //是否显示表格搜索
                 strictSearch: false,                //是否全匹配搜索
@@ -302,11 +287,12 @@
                     formatter: function (value, row, index) {
                         var span = document.createElement('span');
                         span.setAttribute('title', value);
+                        var detailUrl = queryApplyDetailUrl(row);
                         if (value.length > 10) {
-                            span.innerHTML = "<a href=\"/queryapplydetail/" + row.apply_id + "/\">" + value.substr(0, 10) + '...';
+                            span.innerHTML = "<a href=\"" + detailUrl + "\">" + value.substr(0, 10) + '...';
                             +"</a>";
                         } else {
-                            span.innerHTML = "<a href=\"/queryapplydetail/" + row.apply_id + "/\">" + value + "</a>";
+                            span.innerHTML = "<a href=\"" + detailUrl + "\">" + value + "</a>";
                         }
                         return span.outerHTML;
                     }
@@ -328,7 +314,7 @@
                     title: '权限级别',
                     field: 'priv_type',
                     formatter: function (value, row, index) {
-                        if (value === 1) {
+                        if (String(value) === '1') {
                             return 'DATABASE';
                         } else {
                             return 'TABLE';
@@ -364,9 +350,7 @@
                 }],
                 onLoadSuccess: function () {
                 },
-                onLoadError: function () {
-                    alert("数据加载失败！请检查接口返回信息和错误日志！");
-                },
+                onLoadError: onLoadErrorCallback,
                 onSearch: function (e) {
                     //传搜索参数给服务器
                     queryParams(e)
@@ -383,7 +367,7 @@
         $("#instance_name").change(function () {
             $.ajax({
                 type: "get",
-                url: "/instance/instance_resource/",
+                url: "/api/v1/sqlquery/resources/",
                 dataType: "json",
                 data: {
                     instance_name: $("#instance_name").val(),
@@ -432,7 +416,7 @@
         $("#db_name").change(function () {
             $.ajax({
                 type: "get",
-                url: "/instance/instance_resource/",
+                url: "/api/v1/sqlquery/resources/",
                 dataType: "json",
                 data: {
                     instance_name: $("#instance_name").val(),
@@ -619,7 +603,7 @@
                         sortOrder: "asc",                   //排序方式
                         sidePagination: "client",           //分页方式：client客户端分页，server服务端分页（*）
                         pageNumber: 1,                      //初始化加载第一页，默认第一页,并记录
-                        pageSize: 14,                     //每页的记录行数（*）
+                        pageSize: 20,                     //每页的记录行数（*）
                         pageList: [20, 30, 50, 100],       //可供选择的每页的行数（*）
                         search: false,                      //是否显示表格搜索
                         strictSearch: false,                //是否全匹配搜索
@@ -648,9 +632,7 @@
                         }],
                         onLoadSuccess: function () {
                         },
-                        onLoadError: function () {
-                            alert("数据加载失败！请检查接口返回信息和错误日志！");
-                        }
+                        onLoadError: onLoadErrorCallback,
                     });
                 },
                 error: function (XMLHttpRequest, textStatus, errorThrown) {
